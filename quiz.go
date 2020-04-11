@@ -18,8 +18,11 @@ const (
 )
 
 func main() {
+
 	printInstructions()
 	var filename *string
+	var timeLimit *int
+	timeLimit = flag.Int("timeLimit", 30, "This flag is used to set the test time limit")
 	filename = flag.String("file", "problems.csv", "This flag is used to pass the csv filename path")
 	flag.Parse()
 	absPath, _ := filepath.Abs(*filename)
@@ -51,25 +54,38 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	timer := time.NewTimer(time.Duration(*timeLimit) * time.Second)
+
 	correctAnswers := make(map[int]string)
 	wrongAnswers := make(map[int]string)
-	startTime := time.Now()
+	userAnswerChannel := make(chan string)
+	//startTime := time.Now()
+Loop:
 	for i := range questions {
 		fmt.Println("Question ", i+1, " : ", questions[i])
-		if reader.Scan() {
-			answerGiven := reader.Text()
+		go takeAnswer(reader, userAnswerChannel)
+		select {
+		case answerGiven := <-userAnswerChannel:
 			if answerGiven == answers[i] {
 				correctAnswers[i] = answerGiven
 			} else {
 				wrongAnswers[i] = answerGiven
 			}
-		}
-		if time.Now().Sub(startTime).Seconds() >= 30 {
-			color.Red("OOOOOOps you took more than 30 seconds to answer questions")
-			fmt.Println("Here is a list of your progress")
-			break
+		case <-timer.C:
+			var c *color.Color
+			c = color.New(color.FgRed)
+			c.Println(fmt.Sprintf("Ooops you took more than %d seconds", *timeLimit))
+			color.Red("Better Luck Next Time")
+			color.Blue("Here is your progress")
+			break Loop
 		}
 	}
+
+	// if time.Now().Sub(startTime).Seconds() >= 30 {
+	// 	color.Red("OOOOOOps you took more than 30 seconds to answer questions")
+	// 	fmt.Println("Here is a list of your progress")
+	// 	break
+	// }
 	fmt.Println("List of correct answers")
 	printAnswers(correctAnswers, answers, questions, rightAnswer)
 	fmt.Println("List of wrong answers")
@@ -98,3 +114,12 @@ func printInstructions() {
 	color.Cyan("The quiz contains a list of questions you will be asked")
 	color.Cyan("You will have 30 seconds to answer all the questions")
 }
+func takeAnswer(reader *bufio.Scanner, ch chan string) {
+	if reader.Scan() {
+		ch <- reader.Text()
+	}
+}
+
+// func startTimer(ch chan string) {
+
+// }
